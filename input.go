@@ -28,6 +28,16 @@ type Input struct {
 	Date        string `json:"date,omitempty"`
 	TotalTracks int    `json:"totalTracks,omitempty"`
 	TotalDisks  int    `json:"totalDisks,omitempty"`
+	Type        string
+}
+
+func NewExtraInput(path string) (results *Input) {
+	inputFile := &Input{
+		Path: path,
+		Type: "extras",
+	}
+
+	return inputFile
 }
 
 func NewInput(path string) (in *Input, err error) {
