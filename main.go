@@ -19,12 +19,12 @@ type IntListFlag []int
 type StringListFlag []string
 
 var (
-	outputDir = flag.String("o", ".", "Output directory")
-	quiet     = flag.Bool("q", false, "Only print errors")
-	dryRun    = flag.Bool("d", false, "Dry run")
-	jsonDump  = flag.Bool("j", false, "Dump all inputs as json")
-	format    = flag.String("f", "flac", `Output format. Example: "-f ogg". Any format that ffmpeg supports can be used`)
-
+	copyExtras = flag.Bool("e", false, "Copy extra files after splitting flac")
+	outputDir  = flag.String("o", ".", "Output directory")
+	quiet      = flag.Bool("q", false, "Only print errors")
+	dryRun     = flag.Bool("d", false, "Dry run")
+	jsonDump   = flag.Bool("j", false, "Dump all inputs as json")
+	format     = flag.String("f", "flac", `Output format. Example: "-f ogg". Any format that ffmpeg supports can be used`)
 	trackArgs  IntListFlag
 	ffmpegArgs StringListFlag
 	nameTmpl   *template.Template
@@ -127,31 +127,44 @@ func (l *StringListFlag) Set(s string) error {
 	return nil
 }
 
-func scanDir(path string) (ins []*Input) {
-	var f *os.File
-	var fis []os.FileInfo
+func scanDir(path string) (results []*Input) {
+	var files *os.File
+	var fileInfos []os.FileInfo
 	var err error
-
-	if f, err = os.Open(path); err == nil {
-		if fis, err = f.Readdir(0); err == nil {
-			for _, fi := range fis {
-				name := fi.Name()
-				fiPath := filepath.Join(path, name)
-				if fi.IsDir() {
-					ins = append(ins, scanDir(fiPath)...)
+	if files, err = os.Open(path); err == nil {
+		if fileInfos, err = files.Readdir(0); err == nil {
+			for _, fileItem := range fileInfos {
+				name := fileItem.Name()
+				filePath := filepath.Join(path, name)
+				if fileItem.IsDir() {
+					results = append(results, scanDir(filePath)...)
+					log.Printf("%s", filePath)
 				} else if strings.ToLower(filepath.Ext(name)) == ".cue" {
-					var in *Input
-					if in, err = NewInput(fiPath); err != nil {
-						log.Fatalf("%s: %s", fiPath, err)
+					var inputFile *Input
+					if inputFile, err = NewInput(filePath); err != nil {
+						log.Fatalf("%s: %s", filePath, err)
 					}
-					ins = append(ins, in)
+					log.Printf("%s", filePath)
+					results = append(results, inputFile)
+				} else if *copyExtras {
+					if strings.ToLower(filepath.Ext(name)) != ".flac" {
+						var inputFile *Input
+						if inputFile, err = NewInput(filePath); err != nil {
+							log.Fatalf("%s: %s", filePath, err)
+						}
+						results = append(results, inputFile)
+						filepath.Dir(name)
+						log.Printf("%s", filePath)
+						continue
+					}
 				}
 			}
 		}
 	}
 
 	if err != nil {
-		log.Fatalf("%s: %s", path, err)
+		log.Fatal("%s: %s", path, err)
 	}
-	return
+
+	return results
 }
